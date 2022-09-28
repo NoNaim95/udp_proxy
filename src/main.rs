@@ -2,7 +2,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let mut proxy;
 
-    let mut interceptor = |p: &mut udp_proxy::Packet| {
+    let interceptor = |p: &mut udp_proxy::Packet| {
         println!("{:02X?}", p.data);
     };
 
@@ -27,7 +27,7 @@ fn main() {
         println!("Going to Forward packets to 127.0.0.1:28763");
     }
 
-    proxy = udp_proxy::ProxyServer::new(src_ip, src_port, dst_ip, dst_port, &mut interceptor);
+    proxy = udp_proxy::ProxyServer::new(src_ip, src_port, dst_ip, dst_port, &interceptor);
     println!("Starting to forward");
     proxy.start_forwarding();
 }
