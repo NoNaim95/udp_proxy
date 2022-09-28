@@ -1,6 +1,8 @@
 use std::net::{SocketAddr, SocketAddrV4, UdpSocket};
 use std::str;
 
+#[allow(dead_code)]
+
 pub struct Packet<'a> {
     pub data: &'a [u8],
     sender: SocketAddrV4,
