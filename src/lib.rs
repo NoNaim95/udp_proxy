@@ -1,22 +1,46 @@
 use std::net::{SocketAddr, SocketAddrV4, UdpSocket};
 use std::str;
 
-
-pub struct ProxyServer {
-    socket: UdpSocket,
-    dest_ip: SocketAddrV4,
-    clients: Vec<SocketAddrV4>,
+pub struct Packet<'a> {
+    pub data: &'a [u8],
+    sender: SocketAddrV4,
+    receiver: SocketAddrV4,
 }
 
-impl ProxyServer {
-    pub fn new(local_ip: &str, local_port: &str, dst_ip: &str, dst_port: &str) -> ProxyServer {
+impl<'a> Packet<'a> {
+    fn new(data: &'a [u8], sender: SocketAddrV4, receiver: SocketAddrV4) -> Packet {
+        let p = Packet {
+            data,
+            sender,
+            receiver,
+        };
+        p
+    }
+}
+
+pub struct ProxyServer<'a> {
+    socket: UdpSocket,
+    dest_addr: SocketAddrV4,
+    client: Option<SocketAddrV4>,
+    interceptor: &'a dyn Fn(&mut Packet),
+}
+
+impl<'a> ProxyServer<'a> {
+    pub fn new(
+        local_ip: &str,
+        local_port: &str,
+        dst_ip: &str,
+        dst_port: &str,
+        f: &'a dyn Fn(&mut Packet),
+    ) -> ProxyServer<'a> {
         let proxy = ProxyServer {
             socket: UdpSocket::bind(std::format!("{local_ip}:{local_port}"))
                 .expect("couldn't bind to address"),
-            dest_ip: format!("{dst_ip}:{dst_port}")
+            dest_addr: format!("{dst_ip}:{dst_port}")
                 .parse()
                 .expect("Given Destination Ip Address could not be parsed"),
-            clients: Vec::new(),
+            client: None,
+            interceptor: f,
         };
         proxy
     }
@@ -33,14 +57,19 @@ impl ProxyServer {
                 SocketAddr::V4(addr) => addr,
                 SocketAddr::V6(_) => panic!("IpV6 is not supported yet"),
             };
-            if !self.clients.contains(&sender) && sender != self.dest_ip {
-                self.clients.push(sender);
+            if sender != self.dest_addr {
+                self.client = Some(sender);
             }
-	    let receiver = if sender == self.dest_ip{ self.clients[0]} else {self.dest_ip};
+            let receiver = if sender == self.dest_addr {
+                self.client.unwrap()
+            } else {
+                self.dest_addr
+            };
+            let mut packet = Packet::new(&filled_buf, sender, receiver);
+            (self.interceptor)(&mut packet);
             self.socket
                 .send_to(filled_buf, receiver)
                 .expect("Could not send bytes to Destination");
-            println!("{:02X?}", filled_buf);
         }
     }
 }
