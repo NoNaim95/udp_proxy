@@ -4,8 +4,10 @@ mod utils;
 pub mod udp_proxy{
     use std::net::{SocketAddr, SocketAddrV4, UdpSocket};
     use std::str;
-    pub struct Packet<'a> {
-	pub data: &'a [u8],
+
+    #[derive(Clone)]
+    pub struct Packet{
+	pub data: Vec<u8>,
 	sender: SocketAddrV4,
 	receiver: SocketAddrV4,
     }
@@ -14,13 +16,13 @@ pub mod udp_proxy{
 	socket: UdpSocket,
 	dest_addr: SocketAddrV4,
 	client: Option<SocketAddrV4>,
-	interceptor: &'a dyn Fn(&mut Packet),
+	interceptor: &'a mut dyn FnMut(&mut Packet),
     }
 
-    impl<'a> Packet<'a> {
-	fn new(data: &'a [u8], sender: SocketAddrV4, receiver: SocketAddrV4) -> Packet {
+    impl Packet{
+	fn new(buf: Vec<u8>, sender: SocketAddrV4, receiver: SocketAddrV4) -> Packet {
 	    let p = Packet {
-		data,
+		data: buf,
 		sender,
 		receiver,
 	    };
@@ -35,7 +37,7 @@ pub mod udp_proxy{
 	    local_port: &str,
 	    dst_ip: &str,
 	    dst_port: &str,
-	    f: &'a dyn Fn(&mut Packet),
+	    f: &'a mut dyn FnMut(&mut Packet),
 	) -> ProxyServer<'a> {
 	    let proxy = ProxyServer {
 		socket: UdpSocket::bind(std::format!("{local_ip}:{local_port}"))
@@ -51,12 +53,12 @@ pub mod udp_proxy{
 
 	pub fn start_forwarding(&mut self) {
 	    loop {
-		let mut buf = [0; 4096];
+		let mut buf = vec![0; 4096];
 		let (number_of_bytes_read, src_addr) = self
 		    .socket
 		    .recv_from(&mut buf)
 		    .expect("Did not receive any Data");
-		let filled_buf = &mut buf[..number_of_bytes_read];
+		buf.resize(number_of_bytes_read, 0);
 		let sender = match src_addr {
 		    SocketAddr::V4(addr) => addr,
 		    SocketAddr::V6(_) => panic!("IpV6 is not supported yet"),
@@ -69,10 +71,10 @@ pub mod udp_proxy{
 		} else {
 		    self.dest_addr
 		};
-		let mut packet = Packet::new(&filled_buf, sender, receiver);
+		let mut packet = Packet::new(buf, sender, receiver);
 		(self.interceptor)(&mut packet);
 		self.socket
-		    .send_to(filled_buf, receiver)
+		    .send_to(&packet.data, packet.receiver)
 		    .expect("Could not send bytes to Destination");
 	    }
 	}

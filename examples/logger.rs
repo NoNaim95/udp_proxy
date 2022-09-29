@@ -5,20 +5,28 @@ mod Inspector {
     pub struct Inspector {
         client: Option<SocketAddrV4>,
         dst: Option<SocketAddrV4>,
-        //sent_packets: Vec<Box<Packet>>,
+        sent_packets: Vec<Packet>,
+	number_of_intercepted_packets: u32
     }
     impl Inspector {
         pub fn new(client: Option<SocketAddrV4>, dst: Option<SocketAddrV4>) -> Inspector{
 	    let i = Inspector{
 		client,
 		dst,
-		//sent_packets: vec!(),
+		sent_packets: vec!(),
+		number_of_intercepted_packets: 0
 	    };
 	    i
 	}
 
-        pub fn on_packet(&self, _packet: &mut Packet) {
-	    println!("Inspector caught packet");
+        pub fn on_packet(&mut self, packet: &mut Packet) {
+	    self.number_of_intercepted_packets += 1;
+	    self.sent_packets.push(packet.clone());
+	    if self.number_of_intercepted_packets == 30{
+		for packet in &self.sent_packets{
+		    println!("{:02X?}", packet.data);
+		}
+	    }
         }
     }
 }
@@ -51,9 +59,9 @@ fn main() {
         println!("Going to Forward packets to 127.0.0.1:28763");
     }
 
-    let inspector = Inspector::Inspector::new(None, None);
-    let interceptor = |p: &mut Packet| {inspector.on_packet(p);};
-    proxy = ProxyServer::new(src_ip, src_port, dst_ip, dst_port, &interceptor);
+    let mut inspector = Inspector::Inspector::new(None, None);
+    let mut interceptor = |p: &mut Packet| {inspector.on_packet(p);};
+    proxy = ProxyServer::new(src_ip, src_port, dst_ip, dst_port, &mut interceptor);
     println!("Starting to forward");
     proxy.start_forwarding();
 }
