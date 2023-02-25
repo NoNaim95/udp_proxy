@@ -1,4 +1,8 @@
-#[allow(dead_code)]
+#![allow(dead_code)]
+
+extern crate netlink_sys as nls;
+
+
 mod inspector {
     use std::net::SocketAddrV4;
     use udp_proxy::udp_proxy::Packet;

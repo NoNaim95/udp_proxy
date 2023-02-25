@@ -49,7 +49,7 @@ pub mod udp_proxy {
             proxy
         }
 
-        pub fn start_forwarding(&mut self) {
+        pub fn start_forwarding(&mut self) -> !{
             loop {
                 let mut buf = vec![0; 4096];
                 let (number_of_bytes_read, src_addr) = self
